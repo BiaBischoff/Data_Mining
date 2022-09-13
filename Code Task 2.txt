@@ -1,0 +1,368 @@
+# Importing Libraries
+import pandas as pd
+import warnings
+warnings.simplefilter(action='ignore', category=FutureWarning)
+from sklearn.tree import DecisionTreeRegressor
+from sklearn.datasets import make_regression
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.datasets import make_classification
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.metrics import accuracy_score
+from sklearn.model_selection import GridSearchCV, KFold, cross_val_predict
+from sklearn.metrics import mean_absolute_error as MAE
+from sklearn.metrics import mean_squared_error as MSE
+from matplotlib import pyplot
+from sklearn import metrics
+from pandas import DataFrame
+import numpy as np
+import matplotlib.pyplot as plt
+
+# Libraries for Visualization Purposes
+import seaborn as sns
+import matplotlib.pyplot as plt
+
+import seaborn as sns
+# from sklearn import preprocessing
+# from sklearn.preprocessing import scale
+#from statsmodels.stats.outliers_influence import variance_inflation_factor
+import numpy as np
+import matplotlib.pyplot as plt
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
+from sklearn.pipeline import Pipeline
+
+# sklearn modules for Model Selection:
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.preprocessing import MinMaxScaler
+
+# sklearn modules for Model Evaluation & Improvement:
+from sklearn.metrics import confusion_matrix, accuracy_score, f1_score, precision_score, recall_score, fbeta_score
+from sklearn.model_selection import cross_val_score
+from sklearn.model_selection import ShuffleSplit
+from sklearn.model_selection import KFold
+from sklearn import feature_selection
+from sklearn import model_selection
+from sklearn.metrics import classification_report, precision_recall_curve
+from sklearn.metrics import auc, roc_auc_score, roc_curve
+from sklearn.metrics import make_scorer, log_loss
+from sklearn.metrics import average_precision_score
+
+# Loading the Original Churn Dataset
+churn_df2 = pd.read_csv('/Users/bia/Desktop/churn_raw_data.csv')
+
+#Variables Types
+churn_info = churn_df2.info()
+print(churn_info)
+
+#Basic Stats
+churn_desc = churn_df2.describe()
+print(churn_desc)
+
+#Dropping Columns Job, Timezone, Education and customer_ID
+churn_df2 = churn_df2.drop(columns=['Job', 'Timezone', 'Customer_id', 'Education'])
+#Dropping the 1st column "unnamed"
+churn_df2 = churn_df2.iloc[:,1:]
+
+#Dropping more non important columns to predict churn
+churn_df2 = churn_df2.drop(columns=['CaseOrder', 'Interaction', 'City', 'State', 'County', 'Zip', 'Lat', 'Lng', 'Population'])
+
+#Renaming the last 8 survey columns for a more descriptive value
+churn_df2.rename(columns = {'item1':'CS Responses', 'item2':'CS Fixes', 'item3':'CS Replacements',
+                            'item4':'CS Reliability', 'item5':'CS Options', 'item6':'CS Respectfulness',
+                            'item7':'CS Courteous', 'item8':'CS Listening'},inplace=True)
+
+#Finding missing values in my dataset
+churn_df2.isnull().any(axis=1)
+null_values = churn_df2.isna().any()
+print(null_values)
+#How many rows of data are we missing?
+data_null_sum = churn_df2.isnull().sum()
+print(data_null_sum)
+#Filling the missing data with the median of each variable
+#We saw that the columns Children, Age, Income, Tenure and Bandwidth_GB_Year have missing values
+na_cols = churn_df2.isna().any()
+na_cols = na_cols[na_cols == True].reset_index()
+na_cols = na_cols["index"].tolist()
+for col in churn_df2.columns[1:]:
+     if col in na_cols:
+        if churn_df2[col].dtype != 'object':
+             churn_df2[col] = churn_df2[col].fillna(churn_df2[col].median()).round(0)
+
+#Phone and Techie Columns are categorical with missing values as well
+print(churn_df2['Phone'].unique())
+print(churn_df2['Techie'].unique())
+#Since We have "YES" "NO" and "NAN" we will need to replace the nan values for something
+df_stats_phone = churn_df2['Phone'].describe()
+print(df_stats_phone)
+
+df_stats_phone = churn_df2['Techie'].describe()
+print(df_stats_phone)
+
+#Since these are categorical columns, I am going to replace the "NAN" values for whatever shows more
+#Phone --> "YES"
+#Techie --> "NO"
+
+churn_df2 = churn_df2.fillna(churn_df2.mode().iloc[0])
+
+#Making sure all values were replaced by the median (num) and mode (cat), so we check against missing data again
+missing_data_clean = churn_df2.isna().any()
+print(missing_data_clean)
+
+#Extracting the clean dataset
+churn_df2.to_csv('churn_clean.csv')
+churn_df2 = pd.read_csv('churn_clean.csv')
+# result = churn_df2.isna().any()
+# print(result)
+#
+# Checking for outliers in the continuous variables
+numerical_churn_df2 = churn_df2[['MonthlyCharge', 'Bandwidth_GB_Year', 'Tenure']]
+
+# # Checking for outliers at 25%, 50%, 75%, 90%, 95% and 99%
+# print(numerical_churn_df2.describe(percentiles=[.25, .5, .75, .90, .95, .99]))
+#
+# #Graphs of Numerical Features
+# churn_df2[['Children', 'Age', 'Income', 'Outage_sec_perweek', 'Email', 'Contacts', 'Yearly_equip_failure', 'Tenure',
+#            'MonthlyCharge', 'Bandwidth_GB_Year']].hist()
+# plt.savefig('churn_pyplot.jpg')
+# plt.tight_layout()
+# plt.show()
+
+#Changing Variables from NO/YES to 0/1
+churn_df2.Churn.replace({"Yes":1, "No":0}, inplace = True)
+churn_df2.Phone.replace({"Yes":1, "No":0}, inplace = True)
+churn_df2.PaperlessBilling.replace({"Yes":1, "No":0}, inplace = True)
+churn_df2.Techie.replace({"Yes":1, "No":0}, inplace = True)
+churn_df2.Port_modem.replace({"Yes":1, "No":0}, inplace = True)
+churn_df2.Tablet.replace({"Yes":1, "No":0}, inplace = True)
+churn_df2.Multiple.replace({"Yes":1, "No":0}, inplace = True)
+churn_df2.OnlineSecurity.replace({"Yes":1, "No":0}, inplace = True)
+churn_df2.OnlineBackup.replace({"Yes":1, "No":0}, inplace = True)
+churn_df2.DeviceProtection.replace({"Yes":1, "No":0}, inplace = True)
+churn_df2.TechSupport.replace({"Yes":1, "No":0}, inplace = True)
+churn_df2.StreamingTV.replace({"Yes":1, "No":0}, inplace = True)
+churn_df2.StreamingMovies.replace({"Yes":1, "No":0}, inplace = True)
+
+#Creating a dummy variable for some of the categorical variables with 3 or more levels
+dummy1 = pd.get_dummies(churn_df2[['Marital', 'Contract', 'PaymentMethod', 'Gender', 'InternetService', 'Area',
+                                   'Employment']])
+
+#Adding the results to the master dataframe
+churn_df2 = pd.concat([churn_df2, dummy1], axis=1)
+
+#We have created dummies for the below variables, so we can drop them
+churn_df2 = churn_df2.drop(['Marital', 'Contract', 'PaymentMethod', 'Gender', 'InternetService', 'Area',
+                            'Employment'], 1)
+
+#Extract the "Prepared"" dataset
+#Dropping the 1st column
+churn_df2 = churn_df2.iloc[:,1:]
+churn_df2.to_csv('prepared_churn_data.csv')
+churn_df2 = pd.read_csv('prepared_churn_data.csv')
+df = churn_df2.columns
+print('The dataset columns are ', df)
+# # #
+# # # ################################        KNN           ###############################################################
+# # # # #KNN Model HOLDOUT
+# # # # #Y variable is the target: Churn
+# # # # y = churn_df2.Churn.values
+# # # # #Removing Churn from remaining data
+# # # # X = churn_df2.drop('Churn', axis = 1)
+# # # #
+# # # # SEED = 1
+# # # # #Train - Test - Split: 70%-30%
+# # # # X_train, X_test, y_train, y_test = train_test_split(X, y, test_size = .3, random_state = SEED)
+# # # #
+# # # # #KNN model
+# # # # knn = KNeighborsClassifier(n_neighbors = 6)
+# # # #
+# # # # #Fit the data
+# # # # knn.fit(X_train, y_train)
+# # # # #Predict outcomes from test set
+# # # # y_pred = knn.predict(X_test)
+# # # #
+# # # # print('Initial accuracy score KNN model: ', accuracy_score(y_test, y_pred))
+# # # # print(classification_report(y_test, y_pred))
+# # # #
+# # # # #Calculation of the Confusion Matrix
+# # # # confusion_matrix_initial = confusion_matrix(y_test, y_pred)
+# # # # print('Confusion Matrix is: ',confusion_matrix_initial)
+# # # #
+# # # #
+# # # # #Create pipeline object
+# # # # #Normalize Data
+# # # # steps = [('scaler', StandardScaler()),('knn', KNeighborsClassifier())]
+# # # #
+# # # # #Split Dataframe
+# # # # pipeline = Pipeline(steps)
+# # # #
+# # # # #Scale dataframe with pipeline object
+# # # # X_train_scaled, X_test_scaled, y_train_scaled, y_test_scaled = train_test_split(X, y, test_size = .3, random_state = SEED)
+# # # # knn_scaled = pipeline.fit(X_train_scaled, y_train_scaled)
+# # # # #Predict from scaled dataframe
+# # # # y_pred_scaled = pipeline.predict(X_test_scaled)
+# # # #
+# # # # #Print new accuracy
+# # # # print('New accuracy score of scaled KNN model: {:0.3f}'.format(accuracy_score(y_test_scaled, y_pred_scaled)))
+# # # #
+# # # # #Classification Report after scaling
+# # # # print(classification_report(y_test_scaled, y_pred_scaled))
+# # # #
+# # # # #Calculation of the Confusion Matrix
+# # # # confusion_matrix = confusion_matrix(y_test_scaled, y_pred_scaled)
+# # # # print('Confusion Matrix Scaled Model is: ',confusion_matrix)
+# # # #
+# # # # #Calculating AUC Score
+# # # # pred_prob = knn.predict_proba(X_test)
+# # # #
+# # # # #ROC Curve
+# # # # fpr1, tpr1, thresh1 = roc_curve(y_test, pred_prob[:,1], pos_label=1)
+# # # #
+# # # # #ROC curve for tpr = fpr
+# # # # random_probs = [0 for i in range(len(y_test))]
+# # # # p_fpr, p_tpr, _ = roc_curve(y_test, random_probs, pos_label=1)
+# # # #
+# # # # #AUC Score
+# # # # auc_score = roc_auc_score(y_test, pred_prob[:,1])
+# # # #
+# # # # print('AUC Score is ',auc_score)
+# # # #
+# # # # #Plot Prediction and Actual Values
+# # # # plt.figure(figsize=(5, 7))
+# # # # ax = sns.distplot(churn_df2['Churn'], hist=False, color="g", label="Actual Values")
+# # # # sns.distplot(y_pred_scaled, hist=False, color="r", label="Predicted Values", ax=ax)
+# # # # plt.title('Actual vs Predicted Values for Churn Rate')
+# # # # plt.show()
+# # # #
+# # # # #Import GridSearchCV for cross validation of model
+# # # # from sklearn.model_selection import GridSearchCV
+# # # #
+# # # # #k-Fold Cross Validation Method to find the optimal number for n-neighbors
+# # # # param_grid = {'n_neighbors': np.arange(1, 50)}
+# # # # knn = KNeighborsClassifier()
+# # # # knn_cv = GridSearchCV(knn , param_grid, cv=5)
+# # # # #Fit Model
+# # # # knn_cv.fit(X_train, y_train)
+# # # # #Print the optimal number of n_neighbors
+# # # # print('Best parameters for this KNN model: {}'.format(knn_cv.best_params_))
+# # #
+# # # #######################################################################################################################
+# # #
+#Decision Tree Algorithm
+
+
+#Y variable is the target: Churn
+y = churn_df2.Churn.values
+#Removing Churn from remaining data
+X = churn_df2.drop('Churn', axis = 1)
+
+SEED = 1
+#Train - Test - Split: 70%-30%
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size = .3, random_state = SEED)
+
+#Decision Tree model
+decision_tree = DecisionTreeClassifier(max_depth = 8, min_samples_leaf = 0.1, random_state = SEED)
+
+#Fit dataframe to Decision Tree Classifier model
+decision_tree.fit(X_train, y_train)
+
+#Calculate y_pred
+y_pred = decision_tree.predict(X_test)
+y_train_pred = decision_tree.predict(X_train)
+
+#Compute test set MSE
+mse_decision_tree = MSE(y_test, y_pred)
+print('Initial MSE score is: ', mse_decision_tree)
+
+#Calculate Root Mean Squared Error (RMSE)
+rmse_decision_tree = mse_decision_tree**(1/2)
+
+#Print initial RMSE
+print('Initial RMSE score: {:.3f}'.format(rmse_decision_tree))
+
+cm_train = confusion_matrix(y_train, y_train_pred)
+cm_test = confusion_matrix(y_test, y_pred)
+
+print('Confusion Matrix Train is ',cm_train)
+print('Confusion Matrix Test is ',cm_test)
+
+#Print accuracy
+print('Accuracy score of Decision Tree model: {:0.3f}'.format(accuracy_score(y_test, y_pred)))
+
+#Create pipeline object
+#Normalize Data
+steps = [('scaler', StandardScaler()),('decision_tree', DecisionTreeClassifier())]
+
+#Split Dataframe
+pipeline = Pipeline(steps)
+
+#Scale dataframe with pipeline object
+X_train_scaled, X_test_scaled, y_train_scaled, y_test_scaled = train_test_split(X, y, test_size = .3, random_state = SEED)
+decision_tree_scaled = pipeline.fit(X_train_scaled, y_train_scaled)
+#Predict from scaled dataframe
+y_pred_scaled = pipeline.predict(X_test_scaled)
+
+#Compute test set MSE
+mse_decision_tree_scaled = MSE(y_test_scaled, y_pred_scaled)
+print('MSE score is: ', mse_decision_tree_scaled)
+
+#Calculate Root Mean Squared Error (RMSE)
+rmse_decision_tree_scaled = mse_decision_tree_scaled**(1/2)
+
+#Print initial RMSE
+print('RMSE score: {:.3f}'.format(rmse_decision_tree_scaled))
+
+#Print new accuracy
+print('New accuracy score of scaled Decision Tree model: {:0.3f}'.format(accuracy_score(y_test_scaled, y_pred_scaled)))
+
+#Classification Report after scaling
+print(classification_report(y_test_scaled, y_pred_scaled))
+
+#Calculation of the Confusion Matrix
+confusion_matrix = confusion_matrix(y_test_scaled, y_pred_scaled)
+print('Confusion Matrix Scaled Model is: ',confusion_matrix)
+
+#Calculating AUC Score
+pred_prob = decision_tree.predict_proba(X_test)
+
+#ROC Curve
+fpr1, tpr1, thresh1 = roc_curve(y_test, pred_prob[:,1], pos_label=1)
+
+#ROC curve for tpr = fpr
+random_probs = [0 for i in range(len(y_test))]
+p_fpr, p_tpr, _ = roc_curve(y_test, random_probs, pos_label=1)
+
+#AUC Score
+auc_score = roc_auc_score(y_test, pred_prob[:,1])
+
+print('AUC Score is ',auc_score)
+
+# # define dataset
+# X, y = make_classification(n_samples=1000, n_features=58, n_informative=5, n_redundant=5, random_state=1)
+# # define the model
+# model = DecisionTreeClassifier()
+# # fit the model
+# model.fit(X, y)
+# # get importance
+# importance = model.feature_importances_
+# # summarize feature importance
+# for i,item in enumerate(importance):
+#     print('{0:s}: {1:.2f}'.format(churn_df2.columns[i], item))
+# # plot feature importance
+# pyplot.bar([x for x in range(len(importance))], importance)
+# pyplot.show()
+
+#Plot Prediction and Actual Values
+plt.figure(figsize=(5, 7))
+ax = sns.distplot(churn_df2['Churn'], hist=False, color="g", label="Actual Values")
+sns.distplot(y_pred_scaled, hist=False, color="r", label="Predicted Values", ax=ax)
+plt.title('Actual vs Predicted Values for Churn Rate')
+plt.show()
+
+#k-Fold Cross Validation Method to find the optimal number for max_depth and criterion
+param_grid = {'criterion':['gini','entropy'],'max_depth': np.arange(1, 50)}
+dtc = DecisionTreeClassifier()
+dtc_cv = GridSearchCV(dtc, param_grid, cv=5)
+#Fit Model
+dtc_cv.fit(X_train, y_train)
+#Print the optimal number of n_neighbors
+print('Best parameters for this Decision Tree Classifier: {}'.format(dtc_cv.best_params_))
